@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Basquete - Arremesso Simples</title>
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      background: linear-gradient(to bottom, #87CEEB 0%, #e0f6ff 100%);
+      font-family: Arial, Helvetica, sans-serif;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    h1 {
+      color: #fff;
+      text-shadow: 3px 3px 6px #0008;
+      margin: 15px 0 5px;
+      font-size: 2.8rem;
+    }
+
+    #score {
+      font-size: 2.4rem;
+      color: #ffeb3b;
+      font-weight: bold;
+      text-shadow: 2px 2px 5px #000;
+      margin: 0;
+    }
+
+    #game {
+      position: relative;
+      width: 380px;
+      height: 520px;
+      background: #222;
+      border: 8px solid #444;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 10px 30px #0006;
+      margin: 20px auto;
+    }
+
+    #hoop {
+      position: absolute;
+      top: 80px;
+      right: 40px;
+      width: 120px;
+      height: 20px;
+      background: #ff4444;
+      border-radius: 60px 60px 0 0;
+      z-index: 5;
+    }
+
+    #hoop::before {
+      content: "";
+      position: absolute;
+      bottom: -60px;
+      left: 30px;
+      width: 60px;
+      height: 80px;
+      border: 8px solid #fff;
+      border-top: none;
+      border-radius: 0 0 50px 50px;
+    }
+
+    #backboard {
+      position: absolute;
+      top: 40px;
+      right: 20px;
+      width: 160px;
+      height: 100px;
+      background: #ddd;
+      border: 10px solid #fff;
+      box-sizing: border-box;
+    }
+
+    #ball {
+      position: absolute;
+      width: 50px;
+      height: 50px;
+      background: radial-gradient(circle at 30% 30%, #ff9800, #d84315);
+      border-radius: 50%;
+      border: 4px solid #000;
+      box-shadow: 0 5px 15px #0006;
+      left: 40px;
+      bottom: 60px;
+      transition: transform 0.1s;
+      z-index: 10;
+    }
+
+    #power-bar {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 200px;
+      height: 30px;
+      background: #333;
+      border: 3px solid #fff;
+      border-radius: 15px;
+      overflow: hidden;
+    }
+
+    #power-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(to right, #4caf50, #ffeb3b, #f44336);
+      transition: width 0.08s linear;
+    }
+
+    #instructions {
+      color: white;
+      font-size: 1.3rem;
+      margin: 10px 0;
+      text-align: center;
+      text-shadow: 1px 1px 3px black;
+    }
+
+    button {
+      padding: 14px 40px;
+      font-size: 1.4rem;
+      margin: 10px;
+      border: none;
+      border-radius: 12px;
+      background: #ff5722;
+      color: white;
+      cursor: pointer;
+      font-weight: bold;
+      box-shadow: 0 5px 15px #0005;
+    }
+
+    button:hover {
+      background: #ff8a65;
+    }
+
+    button:active {
+      transform: scale(0.96);
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Basquete Arremesso</h1>
+  <div id="score">Pontos: 0</div>
+  <div id="instructions">Segure o botão → Solte na hora certa!</div>
+
+  <div id="game">
+    <div id="backboard"></div>
+    <div id="hoop"></div>
+    <div id="ball"></div>
+    <div id="power-bar">
+      <div id="power-fill"></div>
+    </div>
+  </div>
+
+  <button id="shoot">ARREMESSAR (segurar)</button>
+
+  <script>
+    const ball = document.getElementById('ball');
+    const powerFill = document.getElementById('power-fill');
+    const scoreDisplay = document.getElementById('score');
+    const shootBtn = document.getElementById('shoot');
+
+    let score = 0;
+    let power = 0;
+    let charging = false;
+    let interval;
+
+    function resetBall() {
+      ball.style.transition = 'none';
+      ball.style.left = '40px';
+      ball.style.bottom = '60px';
+      ball.style.transform = 'rotate(0deg)';
+      void ball.offsetWidth; // força reflow
+      ball.style.transition = 'all 1.2s ease-out';
+    }
+
+    function shoot() {
+      if (charging) return;
+
+      const strength = power / 100;
+      const angle = 50 + strength * 40;     // 50° a 90°
+      const distanceX = 260 + strength * 40; // quão longe vai na horizontal
+
+      ball.style.transition = 'all 1.2s cubic-bezier(0.25, 0.1, 0.25, 1)';
+      ball.style.left = distanceX + 'px';
+      ball.style.bottom = '340px';           // altura máxima aproximada
+      ball.style.transform = `rotate(${360 * strength}deg)`;
+
+      // depois de 1.2s verifica se entrou
+      setTimeout(() => {
+        const ballRect = ball.getBoundingClientRect();
+        const hoopRect = document.getElementById('hoop').getBoundingClientRect();
+
+        const ballCenterX = ballRect.left + ballRect.width / 2;
+        const ballCenterY = ballRect.top + ballRect.height / 2;
+
+        const hoopCenterX = hoopRect.left + hoopRect.width / 2;
+        const hoopCenterY = hoopRect.top + hoopRect.height / 2 + 30; // um pouco abaixo
+
+        const dist = Math.hypot(ballCenterX - hoopCenterX, ballCenterY - hoopCenterY);
+
+        if (dist < 55 && ballCenterY > hoopCenterY - 20 && ballCenterY < hoopCenterY + 80) {
+          score++;
+          scoreDisplay.textContent = `Pontos: ${score}`;
+          ball.style.bottom = '160px'; // atravessa a cesta
+          setTimeout(resetBall, 600);
+        } else {
+          // errou → cai no chão
+          ball.style.bottom = '40px';
+          setTimeout(resetBall, 800);
+        }
+      }, 1200);
+
+      // reset power
+      power = 0;
+      powerFill.style.width = '0%';
+    }
+
+    // ------------------ Eventos ------------------
+
+    function startCharging() {
+      if (charging) return;
+      charging = true;
+      power = 0;
+      shootBtn.textContent = "SOLTE!";
+      interval = setInterval(() => {
+        power += 3.5;
+        if (power > 100) power = 100;
+        powerFill.style.width = power + '%';
+      }, 30);
+    }
+
+    function stopCharging() {
+      if (!charging) return;
+      charging = false;
+      clearInterval(interval);
+      shootBtn.textContent = "ARREMESSAR (segurar)";
+      shoot();
+    }
+
+    // Mouse / Touch
+    shootBtn.addEventListener('mousedown', startCharging);
+    shootBtn.addEventListener('mouseup', stopCharging);
+    shootBtn.addEventListener('mouseleave', stopCharging);
+
+    shootBtn.addEventListener('touchstart', e => {
+      e.preventDefault();
+      startCharging();
+    });
+    shootBtn.addEventListener('touchend', e => {
+      e.preventDefault();
+      stopCharging();
+    });
+
+    // Também aceita espaço/tecla enter
+    window.addEventListener('keydown', e => {
+      if (e.code === 'Space' || e.code === 'Enter') {
+        e.preventDefault();
+        startCharging();
+      }
+    });
+
+    window.addEventListener('keyup', e => {
+      if (e.code === 'Space' || e.code === 'Enter') {
+        stopCharging();
+      }
+    });
+
+    // Inicia com bola no lugar
+    resetBall();
+  </script>
+
+</body>
+</html>
